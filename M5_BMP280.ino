@@ -4,6 +4,28 @@
 #include <Wire.h>
 
 BMP280 bmp280;
+double t0, t1;
+float seaLevel = 1010.4;
+float readAltitude(float SL, float pressure) {
+  float atmospheric = pressure / 100.0F;
+  return 44330.0 * (1.0 - pow(atmospheric / SL, 0.1903));
+}
+
+void buttons_test() {
+  if (M5.BtnA.wasPressed()) {
+    Serial.printf("-0.10 HPa");
+    seaLevel-=0.1;
+    displayBMP();
+  }
+  if (M5.BtnB.wasPressed()) {
+    Serial.printf("B");
+  }
+  if (M5.BtnC.wasPressed()) {
+    Serial.printf("+0.10 HPa");
+    seaLevel+=0.1;
+    displayBMP();
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -25,15 +47,10 @@ void setup() {
   Serial.println(F("BMP280 init succeeded."));
   M5.Lcd.drawString(F("BMP280 init succeeded."), 24, 57, GFXFF);
   M5.Lcd.drawJpgFile(SD, "/Check20.jpg", 2, 55);
+  displayBMP();
 }
 
-float seaLevel = 1017.8;
-float readAltitude(float SL, float pressure) {
-  float atmospheric = pressure / 100.0F;
-  return 44330.0 * (1.0 - pow(atmospheric / SL, 0.1903));
-}
-
-void loop() {
+void displayBMP() {
   float pressure, temp, alt;
   M5.Lcd.fillRect(0, 100, 320, 137, TFT_WHITE);
   //get and print temperatures
@@ -65,12 +82,22 @@ void loop() {
   M5.Lcd.drawString(F("* Alt: "), 5, linePos, GFXFF);
   M5.Lcd.setFreeFont(FSS9);
   linePos -= 60;
-  M5.Lcd.drawString(String(temp)+" C", 110, linePos, GFXFF);
+  M5.Lcd.drawString(String(temp) + " C", 110, linePos, GFXFF);
   linePos += 20;
-  M5.Lcd.drawString(String(pressure / 100)+" HPa", 110, linePos, GFXFF);
+  M5.Lcd.drawString(String(pressure / 100) + " HPa", 110, linePos, GFXFF);
   linePos += 20;
-  M5.Lcd.drawString(String(seaLevel)+" HPa", 110, linePos, GFXFF);
+  M5.Lcd.drawString(String(seaLevel) + " HPa", 110, linePos, GFXFF);
   linePos += 20;
-  M5.Lcd.drawString(String(alt)+" m", 110, linePos, GFXFF);
-  delay(5000);
+  M5.Lcd.drawString(String(alt) + " m", 110, linePos, GFXFF);
+  t0 = millis();
+}
+
+void loop() {
+  t1 = millis() - t0;
+  if (t1 > 4999) {
+    displayBMP();
+  }
+  buttons_test();
+  M5.update(); // 好importantですね！
+  // If not the buttons status is not updated lo.
 }
