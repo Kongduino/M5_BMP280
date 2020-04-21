@@ -1,4 +1,4 @@
-#include <M5Stack.h>
+#include <ESP32-Chimera-Core.h>
 #include "Free_Fonts.h"
 #include "Seeed_BMP280.h"
 #include <Wire.h>
@@ -11,7 +11,7 @@ BLECharacteristic *pCharacteristic;
 bool deviceConnected = false;
 BMP280 bmp280;
 double t0, t1;
-float seaLevel = 1010.4;
+float seaLevel = 1013.3;
 float readAltitude(float SL, float pressure) {
   float atmospheric = pressure / 100.0F;
   return 44330.0 * (1.0 - pow(atmospheric / SL, 0.1903));
@@ -23,13 +23,14 @@ float readAltitude(float SL, float pressure) {
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E" // UART service UUID
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
-
+// TODO
+// Add notif characteristic
+// Add menu
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
     };
-
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
     }
@@ -57,21 +58,22 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 };
 
 void buttons_test() {
-  if (M5.BtnA.wasPressed()) {
+  if (M5.BtnA.isPressed()) {
     Serial.printf("-0.10 HPa");
     seaLevel -= 0.1;
     displayBMP();
+    delay(200);
   }
-  if (M5.BtnB.wasPressed()) {
+  if (M5.BtnB.isPressed()) {
     Serial.printf("B");
   }
-  if (M5.BtnC.wasPressed()) {
+  if (M5.BtnC.isPressed()) {
     Serial.printf("+0.10 HPa");
     seaLevel += 0.1;
     displayBMP();
+    delay(200);
   }
 }
-
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -86,12 +88,10 @@ void setup() {
     Serial.println("Device error!");
     M5.Lcd.drawString(F("Starting BMP280 failed!"), 24, 57, GFXFF);
     M5.Lcd.drawString(F("Cannot do anything!"), 24, 82, GFXFF);
-    M5.Lcd.drawJpgFile(SD, "/XMark20.jpg", 2, 55);
     while (1);
   }
   Serial.println(F("BMP280 init succeeded."));
   M5.Lcd.drawString(F("BMP280 init succeeded."), 24, 57, GFXFF);
-  M5.Lcd.drawJpgFile(SD, "/Check20.jpg", 2, 55);
   // Create the BLE Device
   BLEDevice::init("BMP Sea Level Service");
   // Create the BLE Server
@@ -114,6 +114,8 @@ void setup() {
 
 void displayBMP() {
   float pressure, temp, alt;
+  char txString[23];
+  String ret;
   M5.Lcd.fillRect(0, 100, 320, 137, TFT_WHITE);
   //get and print temperatures
   Serial.print("Temp: ");
@@ -123,8 +125,9 @@ void displayBMP() {
 
   //get and print atmospheric pressure data
   Serial.print("Pressure: ");
-  Serial.print(pressure = bmp280.getPressure());
-  Serial.println("Pa");
+  pressure = bmp280.getPressure();
+  Serial.print(pressure / 100.0);
+  Serial.println("HPa");
 
   //get and print altitude data
   Serial.print("Altitude: ");
@@ -132,6 +135,13 @@ void displayBMP() {
   Serial.print(alt);
   Serial.println("m");
   Serial.println("\n");
+  ret = String(temp, 2) + "C @ " + String(alt, 2) + "m";
+  ret.toCharArray(txString, ret.length() + 1);
+  pCharacteristic->setValue(txString);
+  pCharacteristic->notify(); // Send the value to the app!
+  Serial.print("*** Sent Value: ");
+  Serial.print(txString);
+  Serial.println(" ***");
 
   uint8_t linePos = 110;
   M5.Lcd.setFreeFont(FSSB9);
@@ -156,8 +166,9 @@ void displayBMP() {
 
 void loop() {
   t1 = millis() - t0;
-  if (t1 > 4999) {
+  if (t1 > 9999) {
     displayBMP();
+    t0 = millis();
   }
   buttons_test();
   M5.update(); // 好importantですね！
